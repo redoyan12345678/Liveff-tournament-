@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Free Fire Tournament</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+  .container { max-width: 400px; margin: 40px auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+  h2 { text-align: center; }
+  input[type="email"], input[type="password"], input[type="text"] {
+    width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box;
+  }
+  button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+  button:hover { background: #0056b3; }
+  .link { text-align: center; margin-top: 15px; }
+  .link a { color: #007bff; cursor: pointer; text-decoration: none; }
+  .link a:hover { text-decoration: underline; }
+  nav { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; display: flex; justify-content: space-around; padding: 10px 0; border-top: 1px solid #ccc; }
+  nav button { background: none; border: none; font-size: 20px; cursor: pointer; }
+  nav button.active { color: #007bff; font-weight: bold; }
+  .hidden { display: none; }
+  /* Sections */
+  .section { display: none; padding-bottom: 60px; }
+  .section.active { display: block; }
+  /* User Panel Content */
+  #userContent h3 { margin-top: 0; }
+</style>
+</head>
+<body>
+
+<div class="container" id="authContainer">
+  <!-- Login -->
+  <div id="loginSection" class="section active">
+    <h2>Login</h2>
+    <input type="email" id="loginEmail" placeholder="Email" />
+    <input type="password" id="loginPassword" placeholder="Password" />
+    <button onclick="login()">Login</button>
+    <div class="link">
+      Don't have an account? <a onclick="showSection('registerSection')">Register</a><br />
+      <a onclick="showSection('forgotSection')">Forgot Password?</a>
+    </div>
+  </div>
+
+  <!-- Register -->
+  <div id="registerSection" class="section">
+    <h2>Register</h2>
+    <input type="email" id="registerEmail" placeholder="Email" />
+    <input type="password" id="registerPassword" placeholder="Password" />
+    <button onclick="register()">Register</button>
+    <div class="link">
+      Already have an account? <a onclick="showSection('loginSection')">Login</a>
+    </div>
+  </div>
+
+  <!-- Forgot Password -->
+  <div id="forgotSection" class="section">
+    <h2>Forgot Password</h2>
+    <input type="email" id="forgotEmail" placeholder="Enter your registered email" />
+    <button onclick="resetPassword()">Send Reset Link</button>
+    <div class="link">
+      <a onclick="showSection('loginSection')">Back to Login</a>
+    </div>
+  </div>
+</div>
+
+<!-- User Panel -->
+<div class="container hidden" id="userPanel">
+  <h2>User Panel</h2>
+  <p>Balance: ৳<span id="userBalance">0</span></p>
+  <div id="userContent">
+    <h3>Home</h3>
+    <p>No matches added yet.</p>
+  </div>
+  <nav>
+    <button id="navHome" class="active" onclick="loadUserTab('home')">🏠</button>
+    <button id="navWallet" onclick="loadUserTab('wallet')">💳</button>
+    <button id="navHistory" onclick="loadUserTab('history')">📜</button>
+    <button id="navProfile" onclick="loadUserTab('profile')">👤</button>
+  </nav>
+  <button style="margin-top:20px; background:#dc3545;" onclick="logout()">Logout</button>
+</div>
+
+<!-- Admin Panel -->
+<div class="container hidden" id="adminPanel">
+  <h2>Admin Panel</h2>
+
+  <h3>Add Match</h3>
+  <input type="text" id="matchTitle" placeholder="Match Title" />
+  <input type="url" id="matchLogo" placeholder="Match Logo URL" />
+  <input type="datetime-local" id="matchTime" />
+  <input type="number" id="matchFee" placeholder="Entry Fee (৳)" min="0" />
+  <input type="number" id="matchPlayerLimit" placeholder="Player Limit" min="1" />
+  <textarea id="matchDescription" placeholder="Match Description"></textarea>
+  <button onclick="addMatch()">Add Match</button>
+
+  <h3 style="margin-top:30px;">Users List</h3>
+  <div id="usersList">
+    Loading users...
+  </div>
+
+  <h3 style="margin-top:30px;">Deposit Requests</h3>
+  <div id="depositRequests">
+    Loading deposit requests...
+  </div>
+
+  <h3 style="margin-top:30px;">Withdraw Requests</h3>
+  <div id="withdrawRequests">
+    Loading withdraw requests...
+  </div>
+
+  <button style="margin-top:20px; background:#dc3545;" onclick="logout()">Logout</button>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js"></script>
+
+<script>
+  // Your Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyA4DKyv3GqCSO1WwXIWTL7a1doc7bhQMZY",
+    authDomain: "ff-tournament-c9dd2.firebaseapp.com",
+    databaseURL: "https://ff-tournament-c9dd2-default-rtdb.firebaseio.com",
+    projectId: "ff-tournament-c9dd2",
+    storageBucket: "ff-tournament-c9dd2.appspot.com",
+    messagingSenderId: "1055880025714",
+    appId: "1:1055880025714:web:b5438a3964c2b9a24d94eb"
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.database();
+
+  const ADMIN_EMAIL = "rezoan12345678@gmail.com";
+
+  // Show/hide sections
+  function showSection(id) {
+    ['loginSection', 'registerSection', 'forgotSection', 'userPanel', 'adminPanel'].forEach(section => {
+      document.getElementById(section).classList.add('hidden');
+    });
+    document.getElementById(id).classList.remove('hidden');
+  }
+
+  // Login function
+  function login() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value.trim();
+    if(!email || !password) { alert("Please fill both fields."); return; }
+    auth.signInWithEmailAndPassword(email, password)
+      .then(userCredential => {
+        if(email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+          loadAdminData();
+          showSection('adminPanel');
+        } else {
+          loadUserData(userCredential.user.uid);
+          showSection('userPanel');
+        }
+      })
+      .catch(error => alert(error.message));
+  }
+
+  // Register function
+  function register() {
+    const email = document.getElementById('registerEmail').value.trim();
+    const password = document.getElementById('registerPassword').value.trim();
+    if(!email || !password) { alert("Please fill both fields."); return; }
+    auth.createUserWithEmailAndPassword(email, password)
+      .then(userCredential => {
+        // Initialize user data
+        db.ref('users/' + userCredential.user.uid).set({
+          email: email,
+          balance: 0,
+          blocked: false
+        });
+        alert("Registration successful! Please login.");
+        showSection('loginSection');
+      })
+      .catch(error => alert(error.message));
+  }
+
+  // Forgot password
+  function resetPassword() {
+    const email = document.getElementById('forgotEmail').value.trim();
+    if(!email) { alert("Please enter your email."); return; }
+    auth.sendPasswordResetEmail(email)
+      .then(() => alert("Password reset email sent!"))
+      .catch(error => alert(error.message));
+  }
+
+  // Load user data for user panel
+  function loadUserData(uid) {
+    const userRef = db.ref('users/' + uid);
+    userRef.once('value').then(snapshot => {
+      const data = snapshot.val();
+      if(!data) {
+        alert("User data not found.");
+        return;
+      }
+      if(data.blocked) {
+        alert("Your account is blocked. Contact admin.");
+        auth.signOut();
+        showSection('loginSection');
+        return;
+      }
+      document.getElementById('userBalance').textContent = data.balance || 0;
+      loadUserTab('home');
+    });
+  }
+
+  // Load user tabs content
+  function loadUserTab(tab) {
+    const content = document.getElementById('userContent');
+    // Reset active nav button styles
+    ['navHome','navWallet','navHistory','navProfile'].forEach(id => {
+      document.getElementById(id).classList.remove('active');
+    });
+    document.getElementById('nav' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+
+    if(tab === 'home') {
+      content.innerHTML = '<h3>🏠 Home</h3><p>No matches added yet.</p>';
+    }
+    else if(tab === 'wallet') {
+      content.innerHTML = '<h3>💳 Wallet</h3><p>Deposit & Withdraw will be here soon.</p>';
+    }
+    else if(tab === 'history') {
+      content.innerHTML = '<h3>📜 History</h3><p>Your match history will appear here.</p>';
+    }
+    else if(tab === 'profile') {
+      content.innerHTML = '<h3>👤 Profile</h3><p>Email: ' + auth.currentUser.email + '</p>';
+    }
+  }
+
+  // Load admin data (users, requests)
+  function loadAdminData() {
+    // Load Users
+    const usersListDiv = document.getElementById('usersList');
+    usersListDiv.innerHTML = 'Loading users...';
+    db.ref('users').once('value').then(snapshot => {
+      const users = snapshot.val();
+      if(!users) {
+        usersListDiv.innerHTML = '<p>No users found.</p>';
+        return;
+      }
+      let html = '<ul>';
+      for(let uid in users) {
+        const user = users[uid];
+        html += `<li>${user.email} - Balance: ৳${user.balance || 0} - Blocked: ${user.blocked ? 'Yes' : 'No'} ` +
+                `<button onclick="blockUser('${uid}')">Toggle Block</button></li>`;
+      }
+      html += '</ul>';
+      usersListDiv.innerHTML = html;
+    });
+
+    // Deposit Requests - example placeholder
+    document.getElementById('depositRequests').innerHTML = '<p>No deposit requests yet.</p>';
+
+    // Withdraw Requests - example placeholder
+    document.getElementById('withdrawRequests').innerHTML = '<p>No withdraw requests yet.</p>';
+  }
+
+  // Block/Unblock user
+  function blockUser(uid) {
+    const userRef = db.ref('users/' + uid);
+    userRef.once('value').then(snapshot => {
+      const data = snapshot.val();
+      if(!data) return alert('User not found');
+      userRef.update({ blocked: !data.blocked }).then(() => {
+        alert('User block status toggled');
+        loadAdminData();
+      });
+    });
+  }
+
+  // Add Match (simple demo)
+  function addMatch() {
+    const title = document.getElementById('matchTitle').value.trim();
+    const logo = document.getElementById('matchLogo').value.trim();
+    const time = document.getElementById('matchTime').value;
+    const fee = parseFloat(document.getElementById('matchFee').value);
+    const playerLimit = parseInt(document.getElementById('matchPlayerLimit').value);
+    const description = document.getElementById('matchDescription').value.trim();
+
+    if(!title || !logo || !time || isNaN(fee) || isNaN(playerLimit) || !description) {
+      alert('Please fill all match fields correctly.');
+      return;
+    }
+
+    const matchData = {
+      title, logo, time, fee, playerLimit, description,
+      joinedPlayers: 0
+    };
+
+    const newMatchKey = db.ref().child('matches').push().key;
+    db.ref('matches/' + newMatchKey).set(matchData)
+      .then(() => {
+        alert('Match added successfully!');
+        document.getElementById('matchTitle').value = '';
+        document.getElementById('matchLogo').value = '';
+        document.getElementById('matchTime').value = '';
+        document.getElementById('matchFee').value = '';
+        document.getElementById('matchPlayerLimit').value = '';
+        document.getElementById('matchDescription').value = '';
+      })
+      .catch(e => alert('Error adding match: ' + e.message));
+  }
+
+  // Logout
+  function logout() {
+    auth.signOut().then(() => {
+      showSection('loginSection');
+    });
+  }
+
+  // On page load, check auth state
+  auth.onAuthStateChanged(user => {
+    if(user) {
+      if(user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+        loadAdminData();
+        showSection('adminPanel');
+      } else {
+        loadUserData(user.uid);
+        showSection('userPanel');
+      }
+    } else {
+      showSection('loginSection');
+    }
+  });
+</script>
+
+</body>
+</html>
